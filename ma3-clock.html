@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clock</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #2b2c31; overflow: hidden; font-family: Arial, Helvetica, sans-serif; }
+  .win { box-sizing: border-box; height: 100%; display: flex; flex-direction: column; }
+
+  .top { flex: 0 0 42px; display: flex; border-bottom: 5px solid #fff; background: #8d8f95; }
+  .title { flex: 1; display: flex; align-items: center; min-width: 0; color: #fff; font-weight: bold; font-size: 18px; }
+  .logo { display: flex; margin-left: 6px; }
+  .logo span { width: 20px; height: 22px; line-height: 22px; text-align: center; font-size: 19px; font-weight: bold; }
+  .logo .m { background: #1d1d20; color: #fff; }
+  .logo .a { background: #fff; color: #1d1d20; margin-left: 1px; }
+  .clk { width: 20px; height: 20px; margin: 0 22px 0 28px; flex: none; }
+  .dd { position: relative; flex: none; box-sizing: border-box; background: #7b7d83; border-left: 2px solid #55575c; color: #fff; text-align: center; }
+  .dd.s { width: 200px; }
+  .dd.c { width: 152px; }
+  .dd small { position: absolute; left: 12px; top: 6px; font-size: 14px; }
+  .dd b { display: block; font-weight: normal; font-size: 17px; margin-top: 18px; line-height: 20px; }
+  .dd i { position: absolute; right: 7px; top: 3px; width: 0; height: 0; border: 5px solid transparent; border-top: 7px solid #ddd; }
+
+  .panel { position: relative; flex: 1; min-height: 0; background: #3b3c43; border-radius: 0 0 5px 5px; }
+  .panel > svg.digits { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .grip { position: absolute; right: 3px; bottom: 3px; width: 14px; height: 14px; }
+</style>
+</head>
+<body>
+<div class="win">
+  <div class="top">
+    <div class="title">
+      <div class="logo"><span class="m">M</span><span class="a">A</span></div>
+      <svg class="clk" viewBox="0 0 20 20" fill="none" stroke="#e6e6e6" stroke-width="1.6" stroke-linecap="round">
+        <circle cx="10" cy="10" r="8.5"/><path d="M10 5 V10 L13.5 12"/>
+      </svg>
+      Clock
+    </div>
+    <div class="dd s"><small>Style</small><i></i><b>Digital</b></div>
+    <div class="dd c"><small>Clock Source</small><i></i><b>Session Time</b></div>
+  </div>
+
+  <div class="panel">
+    <svg class="digits" viewBox="0 0 680 150" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <g id="digits" fill="#e8a90c"></g>
+      <g id="colons" fill="#e8a90c"></g>
+    </svg>
+    <svg class="grip" viewBox="0 0 14 14" stroke="#cfcfd4" stroke-width="1.5" stroke-linecap="round">
+      <path d="M13 3 L3 13 M13 8 L8 13"/>
+    </svg>
+  </div>
+</div>
+
+<script>
+(function () {
+  const ns = 'http://www.w3.org/2000/svg';
+  const PX = 16, PY = 14.75, SX = 14, SY = 13, Y0 = 10;   // rastr: 5 sloupců × 9 řádků
+  const xs = [32, 120, 256, 344, 480, 568];
+  const colonX = [222, 446];
+
+  const rect = (x, y, w, h, parent) => {
+    const r = document.createElementNS(ns, 'rect');
+    r.setAttribute('x', x); r.setAttribute('y', y);
+    r.setAttribute('width', w); r.setAttribute('height', h);
+    r.setAttribute('rx', 1.5);
+    parent.appendChild(r);
+    return r;
+  };
+
+  // segmenty -> buňky [řádek, sloupec]
+  const rng = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+  const SEG = {
+    a: rng(5, c => [0, c]),
+    g: rng(5, c => [4, c]),
+    d: rng(5, c => [8, c]),
+    f: rng(3, r => [r + 1, 0]),
+    b: rng(3, r => [r + 1, 4]),
+    e: rng(3, r => [r + 5, 0]),
+    c: rng(3, r => [r + 5, 4])
+  };
+  const MAP = {
+    0:'abcdef', 2:'abdeg', 3:'abcdg', 4:'bcfg',
+    5:'acdfg', 6:'acdefg', 7:'abc', 8:'abcdefg', 9:'abcdfg'
+  };
+  const cells = n => {
+    if (n === 1) {   // jednička: sloupec uprostřed, praporek vlevo nahoře, patka dole
+      return [...rng(9, r => [r, 2]), [1, 1], [8, 1], [8, 3]];
+    }
+    return MAP[n].split('').flatMap(k => SEG[k]);
+  };
+  const key = ([r, c]) => r * 5 + c;
+
+  const root = document.getElementById('digits');
+  const digits = xs.map(x => {
+    const grid = [];
+    for (let r = 0; r < 9; r++)
+      for (let c = 0; c < 5; c++)
+        grid.push(rect(x + c * PX, Y0 + r * PY, SX, SY, root));
+    return grid;
+  });
+  const patterns = Array.from({ length: 10 }, (_, n) =>
+    n === 1 || MAP[n] ? new Set(cells(n).map(key)) : new Set());
+
+  const cg = document.getElementById('colons');
+  colonX.forEach(x => [3, 6].forEach(r => rect(x, Y0 + r * PY, 16, SY, cg)));
+
+  const fmt = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit', minute: '2-digit',
+    second: '2-digit', hourCycle: 'h23'
+  });
+
+  function tick() {
+    const s = fmt.format(new Date()).replace(/\D/g, '');
+    digits.forEach((grid, i) => {
+      const on = patterns[+s[i]];
+      grid.forEach((el, k) => { el.style.display = on.has(k) ? '' : 'none'; });
+    });
+    setTimeout(tick, 1000 - (Date.now() % 1000) + 5);
+  }
+  tick();
+})();
+</script>
+</body>
+</html>
